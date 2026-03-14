@@ -1,10 +1,13 @@
 # Minecraft Dungeons - Save Editor
 
-![Minecraft Dungeons - Save Editor Header](assets/readme-header.svg)
+
+<p align="center">
+  <img src="./GithubHeader.png" alt="Header" />
+</p>
 
 A browser-first save editor for Minecraft Dungeons focused on local `.dat` and `.json` editing.
 
-Use editor without downloading HERE: [`https://saveeditors.github.io/minecraft-dungeons-save-editor/`](https://saveeditors.github.io/minecraft-dungeons-save-editor/)
+Use editor without downloading [HERE](https://saveeditors.github.io/minecraft-dungeons-save-editor/)
 
 All editors homepage: [`https://saveeditors.github.io/`](https://saveeditors.github.io/)
 
@@ -48,4 +51,6 @@ Then open `http://127.0.0.1:8080` and load your save.
 - Export supports encrypted `.dat` and readable `.json` workflows.
 
 What this does not do yet: it does not auto-map every unknown field from every possible game build.
+
+
 
