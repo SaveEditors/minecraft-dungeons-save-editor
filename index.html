@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Dungeons Save Editor (Web)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="nav">
+      <div>
+        <h1>Minecraft Dungeons Save Editor (Web)</h1>
+        <div class="nav-meta">
+          <span>Browser-only editor for `.dat` and `.json` saves</span>
+          <span id="metaVersion">Port Version: 1.0.0</span>
+          <span id="metaDirty">Dirty: No</span>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="https://github.com/SaveEditors/minecraft-dungeons-save-editor" target="_blank" rel="noopener noreferrer">Repository</a>
+        <a href="https://github.com/SaveEditors/minecraft-dungeons-save-editor/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+        <a href="https://saveeditors.github.io/" target="_blank" rel="noopener noreferrer">All Editors Home</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-top">
+        <p>
+          Drop a Minecraft Dungeons save file to edit locally in your browser. Nothing uploads to a server.
+          This port supports encrypted `.dat` files and decrypted `.json` files, plus direct export back to game-compatible formats.
+        </p>
+      </div>
+
+      <div class="status-strip">
+        <div class="status-pill"><strong>Input</strong> <span id="statusInput">No file loaded</span></div>
+        <div class="status-pill"><strong>Mode</strong> <span id="statusMode">Unknown</span></div>
+        <div class="status-pill"><strong>Decode</strong> <span id="statusDecode">Awaiting file</span></div>
+        <div class="status-pill"><strong>Profile</strong> <span id="statusProfile">Not parsed</span></div>
+      </div>
+
+      <div class="io-row">
+        <button id="browseButton" class="good">Browse Save</button>
+        <input id="fileInput" type="file" accept=".dat,.json,application/octet-stream,application/json" class="hidden">
+        <button id="exportDatButton" disabled>Export .dat</button>
+        <button id="exportJsonButton" disabled>Export .json</button>
+        <button id="revertButton" class="secondary" disabled>Revert to Loaded</button>
+        <button id="loadDraftButton" class="secondary">Load Draft</button>
+        <button id="clearDraftButton" class="secondary">Clear Draft</button>
+      </div>
+
+      <div id="dropZone" class="drop-zone" tabindex="0">
+        <strong>Drop `.dat` or `.json` save files here</strong>
+        The editor decrypts/parses locally and lets you re-export to encrypted `.dat` or readable `.json`.
+      </div>
+
+      <div class="button-row">
+        <button id="tabInventoryButton" class="tab-btn active">Inventory</button>
+        <button id="tabChestButton" class="tab-btn">Chest</button>
+        <button id="tabStatsButton" class="tab-btn">Stats/Counters</button>
+        <button id="tabRawButton" class="tab-btn">Raw JSON</button>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <div class="column">
+        <section class="panel">
+          <h2>Overview</h2>
+          <div id="summaryGrid" class="summary-grid"></div>
+        </section>
+
+        <section id="inventoryPanel" class="panel tab-panel active">
+          <div class="section-head">
+            <h3>Inventory</h3>
+            <span id="inventoryCount" class="small-note">Items: 0/300</span>
+          </div>
+
+          <div class="currency-row" id="currencyRow"></div>
+
+          <div id="characterRow" class="edit-row"></div>
+
+          <div class="toolbar" style="margin-top:8px;">
+            <button id="unlockPortalButton" class="secondary hidden">Unlock Portal</button>
+            <span id="remainingPointsInventory" class="chip">Remaining Enchantment Points: 0</span>
+          </div>
+
+          <div class="subpanel" style="margin-top:10px;">
+            <div class="section-head">
+              <h3>Equipment Slots</h3>
+              <span class="small-note">Click an item to edit</span>
+            </div>
+            <div id="equipmentGrid" class="equipment-grid"></div>
+          </div>
+
+          <div class="subpanel" style="margin-top:10px;">
+            <div class="section-head">
+              <h3>Inventory Items</h3>
+              <span class="small-note">Filter and manage unequipped items</span>
+            </div>
+            <div id="inventoryFilterRow" class="item-filter-row"></div>
+            <div id="inventoryList" class="item-list"></div>
+          </div>
+        </section>
+
+        <section id="chestPanel" class="panel tab-panel">
+          <div class="section-head">
+            <h3>Storage Chest</h3>
+            <span id="chestCount" class="small-note">Items: 0</span>
+          </div>
+          <div class="toolbar" style="margin-bottom:8px;">
+            <span id="remainingPointsChest" class="chip">Remaining Enchantment Points: 0</span>
+          </div>
+          <div id="chestFilterRow" class="item-filter-row"></div>
+          <div id="chestList" class="item-list"></div>
+        </section>
+
+        <section id="statsPanel" class="panel tab-panel">
+          <div class="section-head">
+            <h3>Stats and Counters</h3>
+          </div>
+          <div class="grid-2">
+            <div class="subpanel">
+              <div class="section-head"><h3>Progress Stat Counters</h3></div>
+              <div class="table-wrap">
+                <div class="table-head" style="grid-template-columns:minmax(180px,1fr) 130px;">
+                  <div>Name</div>
+                  <div>Value</div>
+                </div>
+                <div id="progressStatsRows"></div>
+              </div>
+            </div>
+            <div class="subpanel">
+              <div class="section-head"><h3>Mob Kills</h3></div>
+              <div class="table-wrap">
+                <div class="table-head" style="grid-template-columns:minmax(180px,1fr) 130px;">
+                  <div>Name</div>
+                  <div>Value</div>
+                </div>
+                <div id="mobKillsRows"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="rawPanel" class="panel tab-panel">
+          <div class="section-head">
+            <h3>Raw JSON Editor</h3>
+            <span class="small-note">Advanced fallback: edit any field directly</span>
+          </div>
+          <textarea id="rawJsonArea" spellcheck="false"></textarea>
+          <div class="button-row" style="margin-top:8px;">
+            <button id="rawRefreshButton" class="secondary">Refresh From Current</button>
+            <button id="rawApplyButton" class="warn">Apply JSON</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="column">
+        <section class="panel">
+          <div class="section-head">
+            <h3>Selected Item Editor</h3>
+            <span id="selectedLocationLabel" class="small-note">Location: -</span>
+          </div>
+          <div id="itemEditor" class="item-editor">
+            <p class="small-note">Select an item from Inventory or Chest to edit details.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Activity Log</h3>
+          </div>
+          <div id="logPanel" class="log"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <header>
+        <div class="section-head" style="margin:0;">
+          <h3 id="modalTitle">Select Value</h3>
+          <button id="modalCloseButton" class="secondary">Close</button>
+        </div>
+      </header>
+      <div style="padding:10px 12px;border-bottom:1px solid var(--line);">
+        <div class="grid-2">
+          <div class="field">
+            <label for="modalSearchInput">Search</label>
+            <input id="modalSearchInput" type="text" placeholder="Search by name or id">
+          </div>
+          <div class="field">
+            <label for="modalCustomInput">Custom ID</label>
+            <div class="edit-row">
+              <input id="modalCustomInput" type="text" placeholder="Type custom id">
+              <button id="modalUseCustomButton" class="secondary">Use</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="modalList" class="modal-list"></div>
+      <footer>
+        <span id="modalCount" class="small-note">0 options</span>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
