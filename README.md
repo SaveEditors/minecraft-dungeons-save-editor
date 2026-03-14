@@ -1,7 +1,7 @@
 # Minecraft Dungeons - Save Editor
 
 ![Minecraft Dungeons - Save Editor Header](assets/readme-header.svg)
-`r`n<p align="center">
+<p align="center">
   <img src="./GithubHeader.png" alt="Header" />
 </p>
 
@@ -11,7 +11,6 @@ Use editor without downloading [HERE](https://saveeditors.github.io/minecraft-du
 
 All editors homepage: [`https://saveeditors.github.io/`](https://saveeditors.github.io/)
 
-![Minecraft Dungeons Save Editor Screenshot](assets/readme-screenshot.png)
 
 ## What You Can Edit Right Now
 
