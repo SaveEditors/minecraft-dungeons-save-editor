@@ -8,7 +8,7 @@
 A browser-first save editor for Minecraft Dungeons focused on local `.dat` and `.json` editing.
 
 Use editor without downloading [HERE](https://saveeditors.github.io/minecraft-dungeons-save-editor/)
-![Minecraft Dungeons Save Editor Screenshot](assets/readme-screenshot-app.png)
+
 All editors homepage: [`https://saveeditors.github.io/`](https://saveeditors.github.io/)
 
 
