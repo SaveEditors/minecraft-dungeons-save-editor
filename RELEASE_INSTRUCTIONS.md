@@ -8,6 +8,10 @@ Use editor without downloading HERE: https://saveeditors.github.io/minecraft-dun
 - Steam default save root (Windows): `%USERPROFILE%\Saved Games\Mojang Studios\Dungeons\<account-id>\Characters`
 - Game Pass / Microsoft Store default save root (Windows): `%USERPROFILE%\Saved Games\Mojang Studios\Dungeons\<account-id>\Characters`
 - Expected primary cloud save file name: character `*.dat` in `Characters` folder.
+- Cloud variants to account for during support/testing:
+  - active local synced file,
+  - cloud conflict/duplicate copy,
+  - local backup (`.bak` or renamed `.dat`).
 
 ## Release Checklist
 1. Verify `index.html` works at repo root.

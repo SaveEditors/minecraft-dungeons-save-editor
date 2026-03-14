@@ -20,6 +20,7 @@
       <nav class="nav-links">
         <a href="https://github.com/SaveEditors/minecraft-dungeons-save-editor" target="_blank" rel="noopener noreferrer">Repository</a>
         <a href="https://github.com/SaveEditors/minecraft-dungeons-save-editor/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+        <a href="https://github.com/CutFlame/MCDSaveEdit" target="_blank" rel="noopener noreferrer">Original Project</a>
         <a href="https://saveeditors.github.io/" target="_blank" rel="noopener noreferrer">All Editors Home</a>
       </nav>
     </header>
@@ -30,6 +31,31 @@
           Drop a Minecraft Dungeons save file to edit locally in your browser. Nothing uploads to a server.
           This port supports encrypted `.dat` files and decrypted `.json` files, plus direct export back to game-compatible formats.
         </p>
+      </div>
+      <div class="path-help">
+        <h2>Deployment Notes + Default Save Locations</h2>
+        <div class="path-grid">
+          <div class="path-card">
+            <h3>Save Files (.dat)</h3>
+            <p class="small-note">Open a character file from this default save root. Primary filename pattern is `*.dat`:</p>
+            <code>%HOMEPATH%\Saved Games\Mojang Studios\Dungeons\&lt;16-digit-id&gt;\Characters\*.dat</code>
+            <code>Expected primary cloud file name: character `*.dat` in `Characters`.</code>
+          </div>
+          <div class="path-card">
+            <h3>Game Content (Paks)</h3>
+            <p class="small-note">Useful if you compare item/content data outside the editor:</p>
+            <code>Launcher: %LOCALAPPDATA%\Mojang\products\dungeons\dungeons\Dungeons\Content\Paks</code>
+            <code>Steam: %PROGRAMFILES(X86)%\Steam\steamapps\common\MinecraftDungeons\Dungeons\Content\Paks</code>
+            <code>Xbox app: C:\XboxGames\Minecraft Dungeons\Content\Dungeons\Content\Paks</code>
+          </div>
+          <div class="path-card">
+            <h3>Cloud Save Notes</h3>
+            <p class="small-note">Watch for three variants before editing:</p>
+            <code>1) Active local synced save</code>
+            <code>2) Cloud conflict/duplicate save copy</code>
+            <code>3) Local backup copy (.bak or renamed .dat)</code>
+          </div>
+        </div>
       </div>
 
       <div class="status-strip">
@@ -42,11 +68,21 @@
       <div class="io-row">
         <button id="browseButton" class="good">Browse Save</button>
         <input id="fileInput" type="file" accept=".dat,.json,application/octet-stream,application/json" class="hidden">
+        <button id="backupButton" class="secondary" disabled title="Download an untouched copy of your loaded source file before risky edits.">Download Original Backup</button>
+        <button id="riskyToggleButton" class="warn" title="Enables internal ID editing. Wrong values can corrupt saves.">Enable Risky ID Editing</button>
         <button id="exportDatButton" disabled>Export .dat</button>
         <button id="exportJsonButton" disabled>Export .json</button>
         <button id="revertButton" class="secondary" disabled>Revert to Loaded</button>
         <button id="loadDraftButton" class="secondary">Load Draft</button>
         <button id="clearDraftButton" class="secondary">Clear Draft</button>
+      </div>
+      <div class="input-help">
+        <p class="small-note">Default save folder helper: `%HOMEPATH%\Saved Games\Mojang Studios\Dungeons\&lt;16-digit-id&gt;\Characters`</p>
+        <p class="small-note">Expected primary cloud save file helper: select a character `*.dat` from `Characters` (close game/cloud sync first).</p>
+      </div>
+      <div class="toolbar">
+        <span id="riskState" class="chip">Risky IDs: Locked</span>
+        <span id="exportGuard" class="chip hidden">Risky edits detected. Download backup before export.</span>
       </div>
 
       <div id="dropZone" class="drop-zone" tabindex="0">

@@ -1,51 +1,50 @@
 # Minecraft Dungeons - Save Editor
 
-![Header](assets/readme-header.svg)
+![Minecraft Dungeons - Save Editor Header](assets/readme-header.svg)
 
-Edit Minecraft Dungeons character saves directly in your browser with local-only `.dat`/`.json` processing.
+<p align="center">
+  <img src="./GithubHeader.png" alt="Header" />
+</p>
 
-Use editor without downloading HERE: https://saveeditors.github.io/minecraft-dungeons-save-editor/
+A browser-first save editor for Minecraft Dungeons focused on local `.dat` and `.json` editing.
 
-All editors home: https://saveeditors.github.io/
+Use editor without downloading HERE: [`https://saveeditors.github.io/minecraft-dungeons-save-editor/`](https://saveeditors.github.io/minecraft-dungeons-save-editor/)
 
-![Running Screenshot](assets/readme-screenshot.png)
+All editors homepage: [`https://saveeditors.github.io/`](https://saveeditors.github.io/)
+
+![Minecraft Dungeons Save Editor Screenshot](assets/readme-screenshot-app.png)
 
 ## What You Can Edit Right Now
-- Character level (XP-backed) and computed total gear power.
-- Currency counts: Emerald, Gold, Eye of Ender.
-- Inventory and Storage Chest items.
-- Equipped slots (melee, armor, ranged, 3 artifact slots).
-- Item fields: type, power, rarity, marked new, upgraded, gifted.
-- Enchantments and netherite (gilded) enchantment tiers.
-- Armor properties (add/remove/change IDs).
-- Progress stat counters and mob kill counters.
-- Raw JSON fallback editor for full profile-field control.
+
+- Character progression values including XP-backed level and gear power.
+- Currency values such as emeralds, gold, and eyes of ender.
+- Inventory, storage chest, and equipped slot payloads.
+- Item metadata fields, enchantment tiers, and gilded/netherite fields.
+- Raw JSON fallback edits for advanced troubleshooting.
 
 ## Not Confirmed / Not Exposed Yet
-- Full game-pak extracted icon/name localization parity in browser mode.
-- Auto-discovery of all hidden/unknown fields beyond JSON model + raw editor.
-- Tower-specific workflows from future game updates unless mapped in current save shape.
 
-## Quick Start
-```powershell
-# Open index.html directly, or host with any static server
-# Example with Python:
-python -m http.server 8080
-```
+- Full parity for every game-pak driven icon/name localization path.
+- Automated mapping for every unknown field outside current editor surfaces.
+- Future game-update fields that are not yet observed in current save samples.
 
-Then open `http://localhost:8080` and load your `.dat` or `.json` save.
+## Quick Start (PowerShell)
 
-## Save Paths
-Typical defaults:
-- Steam / Launcher / Microsoft Store (Windows):
-  - `%USERPROFILE%\Saved Games\Mojang Studios\Dungeons\<account-id>\Characters`
-- Main save file pattern:
-  - `*.dat` (one file per character)
+Run from this folder:
+
+- `python -m http.server 8080`
+
+Then open `http://127.0.0.1:8080` and load your save.
+
+## Save Paths (Windows)
+
+- Typical character save root: `%USERPROFILE%\Saved Games\Mojang Studios\Dungeons\<account-id>\Characters`
+- Main save file pattern: `*.dat`
 
 ## Notes
-- Editor runs fully client-side in browser; no server upload path.
-- Export supports encrypted `.dat` and readable `.json`.
-- Close the game and cloud sync before editing, then relaunch after save.
-- Keep backups before writing risky ID/structure edits.
 
-What this does not do yet: it does not auto-load your installed game pak assets to rebuild every in-game icon/string table in-browser.
+- Keep backup creation enabled before writing edits.
+- Close the game/cloud sync before editing and relaunch after save.
+- Export supports encrypted `.dat` and readable `.json` workflows.
+
+What this does not do yet: it does not auto-map every unknown field from every possible game build.

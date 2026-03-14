@@ -92,6 +92,51 @@ a:hover { text-decoration: underline; }
   color: var(--text-dim);
   line-height: 1.45;
 }
+.path-help {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  padding: 11px;
+  display: grid;
+  gap: 8px;
+}
+.path-help h2 {
+  margin: 0;
+  font-size: 0.87rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.path-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(250px, 1fr));
+}
+.path-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-alt);
+  padding: 9px;
+  display: grid;
+  gap: 7px;
+}
+.path-card h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.path-card code {
+  display: block;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  color: #dbe9f7;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .status-strip,
 .io-row,
 .button-row,
@@ -102,6 +147,14 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+.input-help {
+  display: grid;
+  gap: 4px;
+  margin-top: -4px;
+}
+.input-help p {
+  margin: 0;
 }
 .status-pill {
   border: 1px solid var(--line);
@@ -474,6 +527,7 @@ textarea {
   .main-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
+  .path-grid { grid-template-columns: 1fr; }
   .item-list { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
   .item-filter-row { grid-template-columns: repeat(3, minmax(70px, 1fr)); }
   .grid-3 { grid-template-columns: 1fr; }

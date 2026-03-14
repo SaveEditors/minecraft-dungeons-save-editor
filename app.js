@@ -24,6 +24,8 @@
 
   const state = {
     sourceName:"",sourceMode:"unknown",decodeStatus:"Awaiting file",profile:null,original:null,dirty:false,
+    sourceBytes:null,sourceMime:"application/octet-stream",backupDownloaded:false,
+    riskyUnlocked:false,riskyTouched:false,
     tab:"inventory",invFilter:"All",chestFilter:"All",selectedToken:"",logs:[],
     categories:{},
     catalog:{items:{All:new Set(),MeleeWeapons:new Set([DEFAULT_TYPE.MeleeWeapons]),RangedWeapons:new Set([DEFAULT_TYPE.RangedWeapons]),Armor:new Set([DEFAULT_TYPE.Armor]),Artifacts:new Set([DEFAULT_TYPE.Artifacts])},ench:new Set(["Unset"]),armor:new Set(["AllyDamageBoost"])}
@@ -31,8 +33,9 @@
 
   const d = id => document.getElementById(id);
   const dom = {
-    fileInput:d("fileInput"),browseButton:d("browseButton"),dropZone:d("dropZone"),exportDatButton:d("exportDatButton"),exportJsonButton:d("exportJsonButton"),revertButton:d("revertButton"),loadDraftButton:d("loadDraftButton"),clearDraftButton:d("clearDraftButton"),
+    fileInput:d("fileInput"),browseButton:d("browseButton"),dropZone:d("dropZone"),backupButton:d("backupButton"),riskyToggleButton:d("riskyToggleButton"),exportDatButton:d("exportDatButton"),exportJsonButton:d("exportJsonButton"),revertButton:d("revertButton"),loadDraftButton:d("loadDraftButton"),clearDraftButton:d("clearDraftButton"),
     statusInput:d("statusInput"),statusMode:d("statusMode"),statusDecode:d("statusDecode"),statusProfile:d("statusProfile"),metaDirty:d("metaDirty"),
+    riskState:d("riskState"),exportGuard:d("exportGuard"),
     summaryGrid:d("summaryGrid"),currencyRow:d("currencyRow"),characterRow:d("characterRow"),unlockPortalButton:d("unlockPortalButton"),remainingPointsInventory:d("remainingPointsInventory"),remainingPointsChest:d("remainingPointsChest"),
     inventoryFilterRow:d("inventoryFilterRow"),chestFilterRow:d("chestFilterRow"),inventoryList:d("inventoryList"),chestList:d("chestList"),inventoryCount:d("inventoryCount"),chestCount:d("chestCount"),equipmentGrid:d("equipmentGrid"),
     progressStatsRows:d("progressStatsRows"),mobKillsRows:d("mobKillsRows"),
@@ -58,6 +61,8 @@
 
     dom.exportDatButton.addEventListener("click",()=>safe(()=>exportSave("dat")));
     dom.exportJsonButton.addEventListener("click",()=>safe(()=>exportSave("json")));
+    dom.backupButton.addEventListener("click",()=>safe(downloadBackup));
+    dom.riskyToggleButton.addEventListener("click",toggleRiskyMode);
     dom.revertButton.addEventListener("click",()=>{if(!state.original)return;state.profile=clone(state.original);normalizeProfile(state.profile);rebuildCatalog();state.selectedToken="";setDirty(false);log("Reverted","Restored values from loaded file.");renderAll();});
     dom.loadDraftButton.addEventListener("click",loadDraft);
     dom.clearDraftButton.addEventListener("click",()=>{localStorage.removeItem(DRAFT_KEY);log("Draft","Local draft cleared.");});
@@ -68,7 +73,7 @@
     dom.tabRawButton.addEventListener("click",()=>setTab("raw"));
 
     dom.rawRefreshButton.addEventListener("click",()=>{if(!state.profile)return;dom.rawJsonArea.value=serialize(state.profile);log("Raw JSON","Refreshed from current state.");});
-    dom.rawApplyButton.addEventListener("click",()=>{if(!dom.rawJsonArea.value.trim())return;safe(()=>{state.profile=JSON.parse(dom.rawJsonArea.value);normalizeProfile(state.profile);rebuildCatalog();setDirty(true);log("Raw JSON","Applied JSON to profile.");renderAll();});});
+    dom.rawApplyButton.addEventListener("click",()=>{if(!dom.rawJsonArea.value.trim())return;safe(()=>{state.profile=JSON.parse(dom.rawJsonArea.value);normalizeProfile(state.profile);rebuildCatalog();setDirty(true);markRiskyTouched("Raw JSON applied. Verify IDs before export.");log("Raw JSON","Applied JSON to profile.");renderAll();});});
 
     dom.inventoryFilterRow.addEventListener("click",e=>{const f=e.target.closest("button")?.dataset.filter;if(!f)return;state.invFilter=f;renderFilters();renderInventory();});
     dom.chestFilterRow.addEventListener("click",e=>{const f=e.target.closest("button")?.dataset.filter;if(!f)return;state.chestFilter=f;renderFilters();renderChest();});
@@ -139,6 +144,11 @@
     state.original=clone(state.profile);
     state.sourceName=name||"character.dat";
     state.sourceMode=mode;
+    state.sourceBytes=new Uint8Array(bytes);
+    state.sourceMime=mode==="dat"?"application/octet-stream":"application/json";
+    state.backupDownloaded=false;
+    state.riskyTouched=false;
+    state.riskyUnlocked=false;
     state.selectedToken="";
     rebuildCatalog();
     setDirty(false);
@@ -224,7 +234,18 @@
   }
   function renderAll(){
     renderStatus(); renderTabs(); renderSummary(); renderFilters(); renderCurrencies(); renderCharacter(); renderEquipment(); renderInventory(); renderChest(); renderPoints(); renderStats(); renderItemEditor(); renderRaw(); renderLog();
-    const loaded=!!state.profile; dom.exportDatButton.disabled=!loaded; dom.exportJsonButton.disabled=!loaded; dom.revertButton.disabled=!loaded;
+    const loaded=!!state.profile;
+    const blocked = state.riskyTouched && !state.backupDownloaded;
+    dom.exportDatButton.disabled=!loaded || blocked;
+    dom.exportJsonButton.disabled=!loaded || blocked;
+    dom.revertButton.disabled=!loaded;
+    dom.backupButton.disabled=!loaded || !state.sourceBytes;
+    dom.riskState.textContent = `Risky IDs: ${state.riskyUnlocked ? "Unlocked" : "Locked"}`;
+    dom.riskState.title = state.riskyUnlocked
+      ? "Internal IDs are editable. Wrong values can corrupt saves."
+      : "Internal IDs are read-only until you explicitly unlock risky editing.";
+    dom.riskyToggleButton.textContent = state.riskyUnlocked ? "Lock Risky ID Editing" : "Enable Risky ID Editing";
+    dom.exportGuard.classList.toggle("hidden", !blocked);
   }
 
   function renderStatus(){
@@ -311,13 +332,15 @@
     const sel=selected();
     if(!sel){dom.itemEditor.innerHTML='<p class="small-note">Select an item from Inventory or Chest to edit details.</p>'; dom.selectedLocationLabel.textContent='Location: -'; return;}
     const {item,location}=sel, art=classify(item)==="Artifacts", armor=classify(item)==="Armor", moveTo=location==="inventory"?"chest":"inventory", moveText=location==="inventory"?"Move To Chest":"Move To Inventory";
+    const riskyLocked = !state.riskyUnlocked;
+    const riskyAttr = riskyLocked ? "disabled" : "";
     dom.selectedLocationLabel.textContent=`Location: ${location==="inventory"?"Inventory":"Chest"}`;
 
-    const ench=(item.enchantments||[]).map((e,i)=>`<div class="ench-row"><div class="edit-row"><input type="text" data-role="enchant-id" data-index="${i}" value="${escA(e.id)}"><button class="secondary" data-action="pick-enchant" data-index="${i}">Pick</button></div><input type="number" min="0" max="3" step="1" data-role="enchant-level" data-index="${i}" value="${Number(e.level||0)}"><div class="edit-row"><span class="chip">Cost ${enchCost(e,!!item.netheriteEnchant)}</span><button class="danger" data-action="remove-enchant" data-index="${i}">Remove</button></div></div>`).join("") || '<p class="small-note">No enchantment entries yet.</p>';
+    const ench=(item.enchantments||[]).map((e,i)=>`<div class="ench-row"><div class="edit-row"><input type="text" data-role="enchant-id" data-index="${i}" value="${escA(e.id)}" title="Risky internal enchantment ID." ${riskyAttr}><button class="secondary" data-action="pick-enchant" data-index="${i}" title="Risky internal enchantment ID picker." ${riskyAttr}>Pick</button></div><input type="number" min="0" max="3" step="1" data-role="enchant-level" data-index="${i}" value="${Number(e.level||0)}"><div class="edit-row"><span class="chip">Cost ${enchCost(e,!!item.netheriteEnchant)}</span><button class="danger" data-action="remove-enchant" data-index="${i}">Remove</button></div></div>`).join("") || '<p class="small-note">No enchantment entries yet.</p>';
 
-    const armorRows=(item.armorproperties||[]).map((a,i)=>`<div class="prop-row"><div class="edit-row"><input type="text" data-role="armor-id" data-index="${i}" value="${escA(a.id)}"><button class="secondary" data-action="pick-armor" data-index="${i}">Pick</button></div><select data-role="armor-rarity" data-index="${i}">${rarityOpts(a.rarity)}</select><button class="danger" data-action="remove-armor" data-index="${i}">Remove</button></div>`).join("") || '<p class="small-note">No armor properties.</p>';
+    const armorRows=(item.armorproperties||[]).map((a,i)=>`<div class="prop-row"><div class="edit-row"><input type="text" data-role="armor-id" data-index="${i}" value="${escA(a.id)}" title="Risky internal armor property ID." ${riskyAttr}><button class="secondary" data-action="pick-armor" data-index="${i}" title="Risky internal armor property picker." ${riskyAttr}>Pick</button></div><select data-role="armor-rarity" data-index="${i}">${rarityOpts(a.rarity)}</select><button class="danger" data-action="remove-armor" data-index="${i}">Remove</button></div>`).join("") || '<p class="small-note">No armor properties.</p>';
 
-    dom.itemEditor.innerHTML=`<div class="chips"><span class="chip">ID: ${esc(item.type)}</span><span class="chip">InventoryIndex: ${item.inventoryIndex==null?"-":item.inventoryIndex}</span><span class="chip">EquipmentSlot: ${esc(item.equipmentSlot||"None")}</span></div><div class="grid-2"><div class="field"><label>Item Type</label><div class="edit-row"><input type="text" data-role="item-type" value="${escA(item.type)}"><button class="secondary" data-action="pick-item-type">Pick</button></div></div><div class="field"><label>Rarity</label><select data-role="rarity">${rarityOpts(item.rarity)}</select></div></div><div class="grid-2"><div class="field"><label>Power Level</label><div class="edit-row"><button class="secondary" data-action="level-down">-</button><input type="number" min="0" step="1" data-role="power-level" value="${itemLevel(item.power)}"><button class="secondary" data-action="level-up">+</button></div></div><div class="field"><label>Raw Power</label><input type="number" min="0" step="0.00001" data-role="raw-power" value="${Number(item.power)}"></div></div><div class="grid-3"><label><input type="checkbox" data-role="flag-marked" ${item.markedNew?"checked":""}> Marked New</label><label><input type="checkbox" data-role="flag-upgraded" ${item.upgraded?"checked":""}> Upgraded</label><label><input type="checkbox" data-role="flag-gifted" ${item.gifted?"checked":""}> Gifted</label></div><div class="button-row"><button data-action="duplicate">Duplicate</button><button class="danger" data-action="delete">Delete</button><button class="secondary" data-action="move" data-destination="${moveTo}">${moveText}</button></div>${armor?`<div class="subpanel"><div class="section-head"><h3>Armor Properties</h3></div>${armorRows}<button class="secondary" data-action="add-armor">Add Armor Property</button></div>`:""}${!art?`<div class="subpanel"><div class="section-head"><h3>Gilded / Netherite</h3></div><label><input type="checkbox" data-role="toggle-gilded" ${item.netheriteEnchant?"checked":""}> Gilded Item</label>${item.netheriteEnchant?`<div class="grid-2"><div class="field"><label>Netherite Enchantment</label><div class="edit-row"><input type="text" data-role="netherite-id" value="${escA(item.netheriteEnchant.id)}"><button class="secondary" data-action="pick-netherite">Pick</button></div></div><div class="field"><label>Tier</label><div class="edit-row"><input type="number" min="0" max="3" step="1" data-role="netherite-level" value="${Number(item.netheriteEnchant.level||0)}"><button class="danger" data-action="remove-netherite">Remove</button></div></div></div>`:'<p class="small-note">Enable gilded to add a netherite enchantment.</p>'}</div><div class="subpanel"><div class="section-head"><h3>Enchantments</h3><span class="small-note">Desktop parity: add slots in groups of 3</span></div>${ench}<button class="secondary" data-action="add-enchant-slot">Add Enchantment Slot (+3)</button></div>`:""}`;
+    dom.itemEditor.innerHTML=`<div class="chips"><span class="chip">ID: ${esc(item.type)}</span><span class="chip">InventoryIndex: ${item.inventoryIndex==null?"-":item.inventoryIndex}</span><span class="chip">EquipmentSlot: ${esc(item.equipmentSlot||"None")}</span><span class="chip">${state.riskyUnlocked?"Risky ID editing enabled":"Risky ID editing locked"}</span></div><p class="small-note">Helper: IDs (Type, enchant IDs, armor property IDs) are internal values. Wrong values can corrupt saves.</p><div class="grid-2"><div class="field"><label>Item Type</label><div class="edit-row"><input type="text" data-role="item-type" value="${escA(item.type)}" title="Risky internal item type ID." ${riskyAttr}><button class="secondary" data-action="pick-item-type" title="Risky internal item type picker." ${riskyAttr}>Pick</button></div></div><div class="field"><label>Rarity</label><select data-role="rarity">${rarityOpts(item.rarity)}</select></div></div><div class="grid-2"><div class="field"><label>Power Level</label><div class="edit-row"><button class="secondary" data-action="level-down">-</button><input type="number" min="0" step="1" data-role="power-level" value="${itemLevel(item.power)}"><button class="secondary" data-action="level-up">+</button></div></div><div class="field"><label>Raw Power</label><input type="number" min="0" step="0.00001" data-role="raw-power" value="${Number(item.power)}"></div></div><div class="grid-3"><label><input type="checkbox" data-role="flag-marked" ${item.markedNew?"checked":""}> Marked New</label><label><input type="checkbox" data-role="flag-upgraded" ${item.upgraded?"checked":""}> Upgraded</label><label><input type="checkbox" data-role="flag-gifted" ${item.gifted?"checked":""}> Gifted</label></div><div class="button-row"><button data-action="duplicate">Duplicate</button><button class="danger" data-action="delete">Delete</button><button class="secondary" data-action="move" data-destination="${moveTo}">${moveText}</button></div>${armor?`<div class="subpanel"><div class="section-head"><h3>Armor Properties</h3></div>${armorRows}<button class="secondary" data-action="add-armor">Add Armor Property</button></div>`:""}${!art?`<div class="subpanel"><div class="section-head"><h3>Gilded / Netherite</h3></div><label><input type="checkbox" data-role="toggle-gilded" ${item.netheriteEnchant?"checked":""}> Gilded Item</label>${item.netheriteEnchant?`<div class="grid-2"><div class="field"><label>Netherite Enchantment</label><div class="edit-row"><input type="text" data-role="netherite-id" value="${escA(item.netheriteEnchant.id)}" title="Risky internal netherite enchantment ID." ${riskyAttr}><button class="secondary" data-action="pick-netherite" title="Risky internal netherite picker." ${riskyAttr}>Pick</button></div></div><div class="field"><label>Tier</label><div class="edit-row"><input type="number" min="0" max="3" step="1" data-role="netherite-level" value="${Number(item.netheriteEnchant.level||0)}"><button class="danger" data-action="remove-netherite">Remove</button></div></div></div>`:'<p class="small-note">Enable gilded to add a netherite enchantment.</p>'}</div><div class="subpanel"><div class="section-head"><h3>Enchantments</h3><span class="small-note">Desktop parity: add slots in groups of 3</span></div>${ench}<button class="secondary" data-action="add-enchant-slot">Add Enchantment Slot (+3)</button></div>`:""}`;
   }
 
   function rarityOpts(current){return ["Common","Rare","Unique"].map(r=>`<option value="${r}" ${current===r?"selected":""}>${r}</option>`).join("");}
@@ -334,14 +357,14 @@
     if(a==="move"){const dst=b.dataset.destination; if(dst==="inventory"||dst==="chest") moveSelected(dst); return;}
     if(a==="level-up"){item.power=power(itemLevel(item.power)+1); changed("Increased item level"); return;}
     if(a==="level-down"){item.power=power(Math.max(0,itemLevel(item.power)-1)); changed("Decreased item level"); return;}
-    if(a==="pick-item-type"){openModal("Select Item Type",itemOptions(classify(item)),v=>{item.type=v; remember(item.type,classify(item)); changed("Item type changed");}); return;}
+    if(a==="pick-item-type"){if(!state.riskyUnlocked){log("Risky IDs","Unlock risky ID editing to change item type IDs."); return;} openModal("Select Item Type",itemOptions(classify(item)),v=>{item.type=v; remember(item.type,classify(item)); markRiskyTouched("Item type ID changed."); changed("Item type changed");}); return;}
     if(a==="add-armor"){item.armorproperties=item.armorproperties||[]; item.armorproperties.push({id:"AllyDamageBoost",rarity:"Common"}); state.catalog.armor.add("AllyDamageBoost"); changed("Armor property added"); return;}
     if(a==="remove-armor"){const i=Number(b.dataset.index); if(!Number.isFinite(i))return; item.armorproperties.splice(i,1); changed("Armor property removed"); return;}
-    if(a==="pick-armor"){const i=Number(b.dataset.index); if(!Number.isFinite(i))return; openModal("Select Armor Property",armorOptions(),v=>{if(!item.armorproperties[i])return; item.armorproperties[i].id=v; state.catalog.armor.add(v); changed("Armor property changed");}); return;}
+    if(a==="pick-armor"){if(!state.riskyUnlocked){log("Risky IDs","Unlock risky ID editing to change armor property IDs."); return;} const i=Number(b.dataset.index); if(!Number.isFinite(i))return; openModal("Select Armor Property",armorOptions(),v=>{if(!item.armorproperties[i])return; item.armorproperties[i].id=v; state.catalog.armor.add(v); markRiskyTouched("Armor property ID changed."); changed("Armor property changed");}); return;}
     if(a==="add-enchant-slot"){item.enchantments=item.enchantments||[]; if(item.enchantments.length<9){item.enchantments.push({id:"Unset",level:0},{id:"Unset",level:0},{id:"Unset",level:0}); item.enchantments=item.enchantments.slice(0,9); changed("Added enchantment slot block (+3)");} return;}
     if(a==="remove-enchant"){const i=Number(b.dataset.index); if(!Number.isFinite(i))return; item.enchantments.splice(i,1); changed("Enchantment removed"); return;}
-    if(a==="pick-enchant"){const i=Number(b.dataset.index); if(!Number.isFinite(i))return; openModal("Select Enchantment",enchOptions(),v=>{if(!item.enchantments[i])return; item.enchantments[i].id=v; state.catalog.ench.add(v); changed("Enchantment changed");}); return;}
-    if(a==="pick-netherite"){openModal("Select Netherite Enchantment",enchOptions(),v=>{if(!item.netheriteEnchant)item.netheriteEnchant={id:v,level:0}; item.netheriteEnchant.id=v; state.catalog.ench.add(v); changed("Netherite enchantment changed");}); return;}
+    if(a==="pick-enchant"){if(!state.riskyUnlocked){log("Risky IDs","Unlock risky ID editing to change enchantment IDs."); return;} const i=Number(b.dataset.index); if(!Number.isFinite(i))return; openModal("Select Enchantment",enchOptions(),v=>{if(!item.enchantments[i])return; item.enchantments[i].id=v; state.catalog.ench.add(v); markRiskyTouched("Enchantment ID changed."); changed("Enchantment changed");}); return;}
+    if(a==="pick-netherite"){if(!state.riskyUnlocked){log("Risky IDs","Unlock risky ID editing to change netherite IDs."); return;} openModal("Select Netherite Enchantment",enchOptions(),v=>{if(!item.netheriteEnchant)item.netheriteEnchant={id:v,level:0}; item.netheriteEnchant.id=v; state.catalog.ench.add(v); markRiskyTouched("Netherite enchantment ID changed."); changed("Netherite enchantment changed");}); return;}
     if(a==="remove-netherite"){item.netheriteEnchant=null; changed("Removed netherite enchantment"); return;}
   }
 
@@ -350,7 +373,7 @@
     const sel=selected(); if(!sel)return;
     const item=sel.item, t=e.target; if(!(t instanceof HTMLInputElement||t instanceof HTMLSelectElement)) return;
     const r=t.dataset.role; if(!r)return;
-    if(r==="item-type"){item.type=t.value.trim()||item.type; remember(item.type,classify(item)); return changed("Updated item type");}
+    if(r==="item-type"){if(!state.riskyUnlocked){t.value=item.type; log("Risky IDs","Unlock risky ID editing to change item type IDs."); return;} item.type=t.value.trim()||item.type; remember(item.type,classify(item)); markRiskyTouched("Item type ID changed."); return changed("Updated item type");}
     if(r==="rarity"){item.rarity=rarity(t.value); return changed("Updated rarity");}
     if(r==="power-level"){const v=Number(t.value); if(!Number.isFinite(v))return; item.power=power(Math.max(0,Math.floor(v))); return changed("Updated item level");}
     if(r==="raw-power"){const v=Number(t.value); if(!Number.isFinite(v)||v<0)return; item.power=v; return changed("Updated raw power");}
@@ -358,11 +381,11 @@
     if(r==="flag-upgraded"){item.upgraded=t.checked; return changed("Updated Upgraded");}
     if(r==="flag-gifted"){item.gifted=t.checked; return changed("Updated Gifted");}
     if(r==="toggle-gilded"){item.netheriteEnchant=t.checked?(item.netheriteEnchant||{id:"Unset",level:0}):null; return changed("Updated gilded state");}
-    if(r==="netherite-id"){if(!item.netheriteEnchant)item.netheriteEnchant={id:"Unset",level:0}; item.netheriteEnchant.id=t.value.trim()||"Unset"; state.catalog.ench.add(item.netheriteEnchant.id); return changed("Updated netherite id");}
+    if(r==="netherite-id"){if(!state.riskyUnlocked){t.value=item.netheriteEnchant?.id||"Unset"; log("Risky IDs","Unlock risky ID editing to change netherite IDs."); return;} if(!item.netheriteEnchant)item.netheriteEnchant={id:"Unset",level:0}; item.netheriteEnchant.id=t.value.trim()||"Unset"; state.catalog.ench.add(item.netheriteEnchant.id); markRiskyTouched("Netherite enchantment ID changed."); return changed("Updated netherite id");}
     if(r==="netherite-level"){if(!item.netheriteEnchant)item.netheriteEnchant={id:"Unset",level:0}; const v=Number(t.value); if(!Number.isFinite(v))return; item.netheriteEnchant.level=clamp(Math.floor(v),0,3); return changed("Updated netherite level");}
-    if(r==="enchant-id"){const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.enchantments[i])return; item.enchantments[i].id=t.value.trim()||"Unset"; state.catalog.ench.add(item.enchantments[i].id); return changed("Updated enchantment id");}
+    if(r==="enchant-id"){if(!state.riskyUnlocked){const i0=Number(t.dataset.index); if(Number.isFinite(i0)&&item.enchantments[i0]) t.value=item.enchantments[i0].id; log("Risky IDs","Unlock risky ID editing to change enchantment IDs."); return;} const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.enchantments[i])return; item.enchantments[i].id=t.value.trim()||"Unset"; state.catalog.ench.add(item.enchantments[i].id); markRiskyTouched("Enchantment ID changed."); return changed("Updated enchantment id");}
     if(r==="enchant-level"){const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.enchantments[i])return; const v=Number(t.value); if(!Number.isFinite(v))return; item.enchantments[i].level=clamp(Math.floor(v),0,3); return changed("Updated enchantment level");}
-    if(r==="armor-id"){const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.armorproperties[i])return; item.armorproperties[i].id=t.value.trim()||"AllyDamageBoost"; state.catalog.armor.add(item.armorproperties[i].id); return changed("Updated armor property id");}
+    if(r==="armor-id"){if(!state.riskyUnlocked){const i0=Number(t.dataset.index); if(Number.isFinite(i0)&&item.armorproperties[i0]) t.value=item.armorproperties[i0].id; log("Risky IDs","Unlock risky ID editing to change armor property IDs."); return;} const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.armorproperties[i])return; item.armorproperties[i].id=t.value.trim()||"AllyDamageBoost"; state.catalog.armor.add(item.armorproperties[i].id); markRiskyTouched("Armor property ID changed."); return changed("Updated armor property id");}
     if(r==="armor-rarity"){const i=Number(t.dataset.index); if(!Number.isFinite(i)||!item.armorproperties[i])return; item.armorproperties[i].rarity=rarity(t.value); return changed("Updated armor property rarity");}
   }
 
@@ -393,7 +416,40 @@
 
   function setDirty(v){state.dirty=!!v; renderStatus(); saveDraft();}
   function saveDraft(){if(!state.profile)return; try{localStorage.setItem(DRAFT_KEY,JSON.stringify({sourceName:state.sourceName,sourceMode:state.sourceMode,savedAt:new Date().toISOString(),profile:state.profile}));}catch{}}
-  function loadDraft(){const raw=localStorage.getItem(DRAFT_KEY); if(!raw){log("Draft","No saved draft found."); return;} safe(()=>{const d=JSON.parse(raw); if(!d?.profile) throw new Error("Draft payload missing profile"); state.profile=d.profile; normalizeProfile(state.profile); state.original=clone(state.profile); state.sourceName=d.sourceName||"draft.dat"; state.sourceMode=d.sourceMode||"json"; state.decodeStatus="Loaded from local draft"; rebuildCatalog(); setDirty(true); log("Draft loaded","Restored local browser draft."); renderAll();});}
+  function loadDraft(){const raw=localStorage.getItem(DRAFT_KEY); if(!raw){log("Draft","No saved draft found."); return;} safe(()=>{const d=JSON.parse(raw); if(!d?.profile) throw new Error("Draft payload missing profile"); state.profile=d.profile; normalizeProfile(state.profile); state.original=clone(state.profile); state.sourceName=d.sourceName||"draft.dat"; state.sourceMode=d.sourceMode||"json"; state.decodeStatus="Loaded from local draft"; state.sourceBytes=null; state.sourceMime="application/json"; state.backupDownloaded=false; state.riskyTouched=false; state.riskyUnlocked=false; rebuildCatalog(); setDirty(true); log("Draft loaded","Restored local browser draft."); renderAll();});}
+
+  function toggleRiskyMode(){
+    if(!state.profile) return;
+    if(state.riskyUnlocked){
+      state.riskyUnlocked=false;
+      log("Risky IDs","Internal ID fields were locked.");
+      renderItemEditor();
+      renderAll();
+      return;
+    }
+    const ok = window.confirm("Risky ID editing can corrupt saves. Back up first. Enable anyway?");
+    if(!ok) return;
+    state.riskyUnlocked=true;
+    log("Risky IDs","Internal ID fields are now editable.");
+    renderItemEditor();
+    renderAll();
+  }
+
+  function markRiskyTouched(reason){
+    state.riskyTouched=true;
+    if(reason) log("Risky ID edit",reason);
+    renderAll();
+  }
+
+  function downloadBackup(){
+    if(!state.sourceBytes || !state.sourceName) return;
+    const ext = state.sourceMode==="dat"?".dat":".json";
+    const base = state.sourceName.replace(/\.[^.]+$/,"");
+    download(`${base}_backup_original${ext}`, new Blob([state.sourceBytes], {type: state.sourceMime || "application/octet-stream"}));
+    state.backupDownloaded=true;
+    log("Backup","Downloaded original source backup.");
+    renderAll();
+  }
 
   function exportSave(fmt){if(!state.profile)return; const p=clone(state.profile); normalizeProfile(p); p.totalGearPower=charPowerFor(p); const base=(state.sourceName||"character").replace(/\.[^.]+$/,""); if(fmt==="json"){download(`${base}_edited.json`,new Blob([serialize(p)],{type:"application/json"})); log("Exported","Downloaded edited .json file."); return;} if(fmt==="dat"){download(`${base}_edited.dat`,new Blob([encryptDat(p)],{type:"application/octet-stream"})); log("Exported","Downloaded edited encrypted .dat file.");}}
   function download(name,blob){const u=URL.createObjectURL(blob),a=document.createElement("a"); a.href=u;a.download=name;a.click(); URL.revokeObjectURL(u);}
