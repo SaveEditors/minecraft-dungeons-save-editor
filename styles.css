@@ -35,8 +35,7 @@ a:hover { text-decoration: underline; }
 }
 .panel,
 .hero,
-.nav,
-.app-footer {
+.nav {
   background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.05)), var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -483,8 +482,7 @@ textarea {
   overflow: hidden;
 }
 .modal header,
-.modal footer { padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.modal footer { border-top: 1px solid var(--line); border-bottom: 0; }
+.modal .modal-footer { padding: 10px 12px; border-top: 1px solid var(--line); }
 .modal-list {
   overflow: auto;
   padding: 10px;
@@ -524,25 +522,6 @@ textarea {
 .good { color: var(--good); }
 .warn { color: var(--warn); }
 .hidden { display: none !important; }
-.app-footer {
-  padding: 11px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
-.app-footer a {
-  padding: 7px 11px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.04);
-  color: var(--text-dim);
-  text-decoration: none;
-}
-.app-footer a:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
 @media (max-width: 1220px) {
   .main-grid { grid-template-columns: 1fr; }
 }

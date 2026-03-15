@@ -1,8 +1,6 @@
 # Minecraft Dungeons - Save Editor
 
 ![Minecraft Dungeons - Save Editor Header](assets/readme-header.svg)
-<p align="center">
-</p>
 
 A browser-first save editor for Minecraft Dungeons focused on local `.dat` and `.json` editing.
 
